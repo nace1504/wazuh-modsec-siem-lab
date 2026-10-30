@@ -1,0 +1,80 @@
+<!--
+  Custom Wazuh Rules for ModSecurity CRS v4 JSON Audit Logs
+  File location on Wazuh Manager (VM 3): /var/ossec/etc/rules/modsec_crs4_rules.xml
+-->
+<group name="modsecurity,waf,web_attack,">
+
+  <!-- Base rule: Any ModSecurity JSON log event -->
+  <rule id="100100" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="transaction.client_ip">\.+</field>
+    <description>ModSecurity: WAF JSON event received</description>
+  </rule>
+
+  <!-- Rule for blocked requests (HTTP 403) -->
+  <rule id="100101" level="7">
+    <if_sid>100100</if_sid>
+    <field name="transaction.response.http_code">^403$</field>
+    <description>ModSecurity: Access Forbidden (403) - Request blocked by WAF</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+  </rule>
+
+  <!-- Rule: SQL Injection Detection (CRS 942xxx) -->
+  <rule id="100102" level="10">
+    <if_sid>100101</if_sid>
+    <field name="transaction.messages">SQL Injection|942</field>
+    <description>ModSecurity CRS v4: SQL Injection Attack Detected and Blocked</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>attack,sqli,pci_dss_6.5.1,</group>
+  </rule>
+
+  <!-- Rule: Cross-Site Scripting (XSS) Detection (CRS 941xxx) -->
+  <rule id="100103" level="10">
+    <if_sid>100101</if_sid>
+    <field name="transaction.messages">XSS|Cross-site Scripting|941</field>
+    <description>ModSecurity CRS v4: XSS Attack Detected and Blocked</description>
+    <mitre>
+      <id>T1059.007</id>
+    </mitre>
+    <group>attack,xss,pci_dss_6.5.7,</group>
+  </rule>
+
+  <!-- Rule: Path Traversal / Local File Inclusion (LFI) Detection (CRS 930xxx) -->
+  <rule id="100104" level="10">
+    <if_sid>100101</if_sid>
+    <field name="transaction.messages">Path Traversal|Directory Traversal|LFI|930</field>
+    <description>ModSecurity CRS v4: Path Traversal / LFI Attempt Detected and Blocked</description>
+    <mitre>
+      <id>T1083</id>
+    </mitre>
+    <group>attack,lfi,pci_dss_6.5.8,</group>
+  </rule>
+
+  <!-- Rule: Remote Code Execution (RCE) / Command Injection (CRS 932xxx) -->
+  <rule id="100105" level="12">
+    <if_sid>100101</if_sid>
+    <field name="transaction.messages">Remote Command Execution|RCE|Unix Command Injection|932</field>
+    <description>ModSecurity CRS v4: Remote Command Execution (RCE) Attempt Detected and Blocked</description>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+    <group>attack,rce,pci_dss_6.5.2,</group>
+  </rule>
+
+  <!-- Rule: High frequency attacks from same IP -> Trigger Active Response -->
+  <rule id="100110" level="14" frequency="4" timeframe="60">
+    <if_matched_sid>100101</if_matched_sid>
+    <same_field>transaction.client_ip</same_field>
+    <description>ModSecurity: Multiple Web Attacks from same IP in 60s - Triggering Active Response</description>
+    <mitre>
+      <id>T1190</id>
+    </mitre>
+    <group>active_response,</group>
+  </rule>
+
+</group>
+

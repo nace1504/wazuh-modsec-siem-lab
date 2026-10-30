@@ -1,0 +1,33 @@
+services:
+  modsec-waf:
+    build:
+      context: ./docker/modsecurity
+      dockerfile: Dockerfile
+    container_name: modsec-waf
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/modsecurity/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/modsecurity/conf/modsec.conf:/etc/nginx/modsec/modsec.conf:ro
+      - /var/log/modsec:/var/log/modsec
+    depends_on:
+      - dvwa
+    networks:
+      - target-net
+
+  dvwa:
+    image: vulnerables/web-dvwa:latest
+    container_name: dvwa-app
+    restart: unless-stopped
+    environment:
+      - PHP_SECURITY_LEVEL=low
+    volumes:
+      - ./docker/dvwa/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - target-net
+
+networks:
+  target-net:
+    driver: bridge
+
