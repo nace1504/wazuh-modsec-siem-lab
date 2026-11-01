@@ -86,7 +86,7 @@ Password: <CHUỖI_MẬT_KHẨU_NGẪU_NHIÊN>
 > [!IMPORTANT]
 > **Hãy copy và lưu chuỗi mật khẩu này lại!** Mật khẩu cũng được lưu trữ an toàn trong file nén `wazuh-install-files.tar`. Bạn có thể xem lại bất cứ lúc nào bằng lệnh:
 > ```bash
-> sudo tar -O -xf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt | grep -E "admin"
+> sudo tar -O -xf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt
 > ```
 
 ---
