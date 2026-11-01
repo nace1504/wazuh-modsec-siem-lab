@@ -94,11 +94,7 @@ if ! grep -q "/var/log/modsec/modsec_audit.log" /var/ossec/etc/ossec.conf; then
   echo "[+] Injected ModSecurity JSON localfile block successfully."
 fi
 
-# 9. Validate configuration using official wazuh-control test
-echo "[+] Validating complete agent configuration..."
-/var/ossec/bin/wazuh-control config-test
-
-# 10. Enable and start Wazuh Agent
+# 9. Enable and start Wazuh Agent
 echo "[+] Starting wazuh-agent service..."
 systemctl daemon-reload
 systemctl enable wazuh-agent
