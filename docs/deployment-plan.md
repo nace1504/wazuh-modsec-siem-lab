@@ -22,11 +22,11 @@ Tài liệu này cung cấp lộ trình kỹ thuật chuẩn hóa từ A đến 
 - [x] 1.4 Kiểm tra phân quyền thực thi các bash script (`chmod +x scripts/*.sh`).
 
 ### Giai đoạn 2: Xây dựng Lớp WAF & Docker trên VM 2 (Web Target)
-- [ ] 2.1 Tạo thư mục `/var/log/modsec` và cấp quyền ghi cho container (`chmod 755`, file `666`).
-- [ ] 2.2 Kiểm tra file cấu hình WAF `modsec.conf` (Single-line JSON format, CRS v4 rules).
-- [ ] 2.3 Khởi chạy cụm container qua Docker Compose (`modsec-waf` và `dvwa`).
-- [ ] 2.4 Xác nhận mạng cô lập Docker bridge `target-net` (DVWA không mở port trực tiếp ra ngoài).
-- [ ] 2.5 **Chốt chặn 1:** Kiểm thử cục bộ bằng `curl` kiểm tra mã `403` và xác thực JSON log qua `jq .`.
+- [x] 2.1 Tạo thư mục `/var/log/modsec` và cấp quyền ghi cho container (`chmod 755`, file `666`).
+- [x] 2.2 Kiểm tra file cấu hình WAF `modsec.conf` (Single-line JSON format, CRS v4 rules).
+- [x] 2.3 Khởi chạy cụm container qua Docker Compose (`modsec-waf` và `dvwa`).
+- [x] 2.4 Xác nhận mạng cô lập Docker bridge `target-net` (DVWA không mở port trực tiếp ra ngoài).
+- [x] 2.5 **Chốt chặn 1:** Kiểm thử cục bộ bằng `curl` kiểm tra mã `403` và xác thực JSON log qua `jq .`.
 
 ### Giai đoạn 3: Cấu hình Trung tâm SIEM & Phân tích trên VM 3 (Wazuh AIO)
 - [ ] 3.1 Cài đặt Wazuh All-in-One trên VM 3.
@@ -130,6 +130,7 @@ tail -n 1 /var/log/modsec/modsec_audit.log | jq .
 ---
 
 ### GIAI ĐOẠN 3: CẤU HÌNH TRUNG TÂM SIEM & PHÂN TÍCH TRÊN VM 3 (WAZUH AIO)
+> 📖 **Cẩm nang chi tiết từng bước (Wazuh AIO, 4GB Heap, CRS v4 Rules, DOCKER-USER AR, Telegram):** Xem toàn bộ tại file [**`docs/phase3-wazuh-siem-setup.md`**](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/docs/phase3-wazuh-siem-setup.md).
 
 #### 1. Tối ưu hóa JVM Heap Memory cho Wazuh Indexer (4GB):
 Mở file cấu hình JVM của Indexer:

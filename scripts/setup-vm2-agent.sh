@@ -6,13 +6,22 @@
 
 set -e
 
-WAZUH_MANAGER_IP="${1:-192.168.1.30}"
-WAZUH_AGENT_NAME="${2:-vm2-web-target}"
+# Load environment variables from .env if present
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+elif [ -f ../.env ]; then
+  export $(grep -v '^#' ../.env | xargs)
+fi
+
+WAZUH_MANAGER_IP="${1:-${WAZUH_MANAGER_IP:-192.168.1.30}}"
+WAZUH_AGENT_NAME="${2:-${WAZUH_AGENT_NAME:-vm2-web-target}}"
+WAZUH_VERSION="${3:-${WAZUH_VERSION:-4.8.2-1}}"
 
 echo "=========================================================="
 echo " Starting Wazuh Agent Setup on VM 2 (Web Target / WAF Host)"
 echo " Wazuh Manager IP : ${WAZUH_MANAGER_IP}"
 echo " Wazuh Agent Name : ${WAZUH_AGENT_NAME}"
+echo " Wazuh Version    : ${WAZUH_VERSION}"
 echo "=========================================================="
 
 # Ensure running as root
@@ -36,11 +45,20 @@ chmod 644 /usr/share/keyrings/wazuh.gpg
 echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
 apt-get update -y
 
-# 3. Install Wazuh Agent with Manager IP
-echo "[+] Installing Wazuh Agent..."
-WAZUH_MANAGER="${WAZUH_MANAGER_IP}" WAZUH_AGENT_NAME="${WAZUH_AGENT_NAME}" apt-get install -y wazuh-agent
+# 3. Install Wazuh Agent matching Manager version
+echo "[+] Installing Wazuh Agent (${WAZUH_VERSION})..."
+WAZUH_MANAGER="${WAZUH_MANAGER_IP}" WAZUH_AGENT_NAME="${WAZUH_AGENT_NAME}" apt-get install -y --allow-downgrades wazuh-agent="${WAZUH_VERSION}"
 
-# 4. Inject JSON localfile configuration into /var/ossec/etc/ossec.conf
+# Ensure Manager IP is correctly set in ossec.conf
+sed -i "s/<address>.*<\/address>/<address>${WAZUH_MANAGER_IP}<\/address>/" /var/ossec/etc/ossec.conf
+
+# 4. Explicit Agent Enrollment with Manager (Generate client.keys)
+echo "[+] Registering Agent with Wazuh Manager (${WAZUH_MANAGER_IP}:1515)..."
+/var/ossec/bin/agent-auth -m "${WAZUH_MANAGER_IP}" -A "${WAZUH_AGENT_NAME}" || {
+  echo "[!] Warning: agent-auth connection failed. Agent will retry auto-enrollment on service start."
+}
+
+# 5. Inject JSON localfile configuration into /var/ossec/etc/ossec.conf
 echo "[+] Configuring /var/ossec/etc/ossec.conf for ModSecurity JSON logs..."
 if ! grep -q "/var/log/modsec/modsec_audit.log" /var/ossec/etc/ossec.conf; then
   sed -i '/<\/ossec_config>/i \
@@ -53,7 +71,7 @@ else
   echo "[*] Localfile block already present in ossec.conf."
 fi
 
-# 5. Enable and start Wazuh Agent
+# 6. Enable and start Wazuh Agent
 echo "[+] Starting wazuh-agent service..."
 systemctl daemon-reload
 systemctl enable wazuh-agent
