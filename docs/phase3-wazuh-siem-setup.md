@@ -156,7 +156,7 @@ sudo chmod 660 /var/ossec/etc/rules/modsec_crs4_rules.xml
 | **`100103`** | **10** | Vi phạm luật XSS (CRS 941xxx) | Cross-Site Scripting (**T1059.007**, PCI-DSS 6.5.7) |
 | **`100104`** | **10** | Vi phạm luật Path Traversal / LFI (CRS 930xxx) | File Inclusion / Path Traversal (**T1083**) |
 | **`100105`** | **12** | Vi phạm luật Remote Code Execution (CRS 932xxx) | Command Injection / RCE (**T1059**) |
-| **`100110`** | **14** | Cùng 1 IP vi phạm từ 4 lần trong vòng 60 giây (`frequency="4" timeframe="60"`) | **Kích hoạt Active Response (Chặn IP)** |
+| **`100110`** | **14** | Cùng 1 IP vi phạm từ 8 lần trong vòng 60 giây (`frequency="8" timeframe="60"`) | **Kích hoạt Active Response (Chặn IP)** |
 
 ---
 
