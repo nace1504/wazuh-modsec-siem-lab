@@ -177,18 +177,20 @@ ACTION=$1
 USER=$2
 IP=$3
 
-if [ -z "$IP" ]; then
-    read INPUT_JSON
-    ACTION=$(echo "$INPUT_JSON" | jq -r '.command')
-    IP=$(echo "$INPUT_JSON" | jq -r '.parameters.alert.data.transaction.client_ip // .parameters.alert.srcip')
+if [ -z "$IP" ] || [ "$IP" = "-" ]; then
+    read -r INPUT_JSON
+    ACTION=$(echo "$INPUT_JSON" | jq -r '.command // empty')
+    IP=$(echo "$INPUT_JSON" | jq -r '.parameters.alert.data.transaction.client_ip // .parameters.alert.srcip // empty')
 fi
 
 if [ "$ACTION" = "add" ]; then
-    /sbin/iptables -I DOCKER-USER -s "$IP" -j DROP
-    logger -t wazuh-ar "Blocked IP $IP via DOCKER-USER chain"
+    if ! /sbin/iptables -C DOCKER-USER -s "$IP" -j DROP 2>/dev/null; then
+        /sbin/iptables -I DOCKER-USER -s "$IP" -j DROP
+        logger -t wazuh-ar "[DOCKER-USER] Successfully BLOCKED attack IP: $IP"
+    fi
 elif [ "$ACTION" = "delete" ]; then
-    /sbin/iptables -D DOCKER-USER -s "$IP" -j DROP
-    logger -t wazuh-ar "Unblocked IP $IP from DOCKER-USER chain"
+    /sbin/iptables -D DOCKER-USER -s "$IP" -j DROP 2>/dev/null || true
+    logger -t wazuh-ar "[DOCKER-USER] Successfully UNBLOCKED IP: $IP"
 fi
 EOF
 
@@ -205,12 +207,18 @@ Khai báo trên Wazuh Manager (VM 3) trong `/var/ossec/etc/ossec.conf`:
 </command>
 
 <active-response>
+  <disabled>no</disabled>
   <command>docker-firewall-drop</command>
   <location>local</location>
   <rules_id>100110</rules_id>
   <timeout>600</timeout>
 </active-response>
 ```
+
+> **Lệnh bỏ khóa (Unblock) thủ công ngay lập tức trên VM 2:**
+> ```bash
+> sudo /var/ossec/active-response/bin/docker-firewall-drop delete - 192.168.1.10
+> ```
 
 ---
 

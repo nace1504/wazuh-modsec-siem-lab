@@ -57,7 +57,7 @@ Tài liệu này là cẩm nang kỹ thuật hướng dẫn chi tiết từng b�
 2. **Tối ưu hóa hiệu năng Indexer (Heap 4GB):** Cấu hình `-Xms4g -Xmx4g` cho OpenSearch JVM để hệ thống không bị nghẽn I/O khi nhận log dồn dập.
 3. **Nạp bộ luật tùy biến ModSecurity CRS v4:** Tích hợp bộ giải mã JSON có sẵn (`json_decoder`) để bắt mã lỗi `HTTP 403`, phân loại tấn công OWASP (SQLi, XSS, Path Traversal, RCE) theo chuẩn MITRE ATT&CK và PCI-DSS.
 4. **Thu thập log chuẩn qua TCP 1514:** Cài đặt Wazuh Agent trên VM 2 kết nối an toàn về VM 3, cấu hình directive `<localfile>` đọc file log JSON (loại bỏ hoàn toàn rủi ro mất gói của Syslog UDP 514).
-5. **Kích hoạt Active Response chuỗi `DOCKER-USER`:** Tự động ra lệnh cho VM 2 khóa IP kẻ tấn công vào chuỗi `DOCKER-USER` của iptables khi phát hiện hành vi tấn công lặp lại $\ge 4$ lần/60 giây.
+5. **Kích hoạt Active Response chuỗi `DOCKER-USER`:** Tự động ra lệnh cho VM 2 khóa IP kẻ tấn công vào chuỗi `DOCKER-USER` của iptables khi phát hiện hành vi tấn công lặp lại $\ge 8$ lần/60 giây.
 6. **(Tùy chọn) Webhook Telegram:** Bắn thông báo khẩn cấp về điện thoại khi có sự cố nghiêm trọng (Alert Level $\ge 12$).
 
 ---
@@ -345,6 +345,26 @@ sudo systemctl restart wazuh-manager
 
 ---
 
+### 7.3. Quy trình bỏ khóa / gỡ chặn IP (Unblock Kali Linux):
+Khi thực hành giả lập hoặc kiểm thử nhiều lần, để gỡ bỏ lệnh cấm cho IP của Kali (`192.168.1.10`), bạn có 2 cách:
+
+1. **Cách 1: Gỡ khóa thủ công ngay lập tức trên VM 2:**
+   ```bash
+   sudo /var/ossec/active-response/bin/docker-firewall-drop delete - 192.168.1.10
+   ```
+   *(Hoặc xóa trực tiếp bằng iptables: `sudo iptables -D DOCKER-USER -s 192.168.1.10 -j DROP`)*.
+
+2. **Cách 2: Chờ hết thời gian hết hạn (Timeout):**
+   Wazuh Active Response được cấu hình `<timeout>600</timeout>`. Sau đúng 10 phút (600 giây), Wazuh Manager sẽ tự động gửi lệnh `delete` tới Agent và IP sẽ được tự động mở khóa.
+
+Kiểm tra lại trạng thái iptables trên VM 2:
+```bash
+sudo iptables -L DOCKER-USER -n -v
+```
+*(Dòng `DROP all -- 192.168.1.10` biến mất là đã mở khóa thành công)*.
+
+---
+
 ## 📱 8. BƯỚC 6: TÍCH HỢP CẢNH BÁO TELEGRAM WEBHOOK (TÙY CHỌN)
 
 Để nhận cảnh báo tức thời trên điện thoại khi có sự cố cấp độ cao (Level $\ge 12$ hoặc kích hoạt Active Response):
@@ -453,6 +473,22 @@ sudo tail -f /var/ossec/logs/alerts/alerts.json | grep -E "100102|modsecurity"
 - [ ] 3.5 File `/var/ossec/etc/ossec.conf` trên VM 2 đã có block `<localfile>` đọc file log JSON.
 - [ ] 3.6 Script `docker-firewall-drop` đã được tạo trên VM 2 và khai báo `<active-response>` trên VM 3.
 - [ ] 3.7 Đăng nhập thành công giao diện Web Wazuh Dashboard tại `https://192.168.1.30`.
+
+---
+
+## 💡 11. BẢNG TỔNG HỢP CÁC BẪY LỖI KỸ THUẬT & GIẢI PHÁP TRIỂN KHAI (TROUBLESHOOTING & LESSONS LEARNED)
+
+Trong quá trình triển khai thực tế giữa hệ thống WAF ModSecurity CRS v4 và SIEM Wazuh, các kỹ sư SOC thường xuyên đối mặt với 7 điểm nghẽn kỹ thuật quan trọng sau. Bảng này tổng kết nguyên nhân gốc rễ và giải pháp triệt để:
+
+| STT | Vấn đề / Lỗi thực tế | Nguyên nhân kỹ thuật | Giải pháp đã chuẩn hóa trong Project |
+| :---: | :--- | :--- | :--- |
+| **1** | **`agent-auth: ERROR: Agent version must be lower or equal to manager version`** | Wazuh Manager (VM 3) phiên bản **4.8.2-1** thực thi kiểm tra chặt chẽ. Lệnh `apt install wazuh-agent` mặc định từ kho `4.x/apt` sẽ kéo bản mới nhất (4.14), bị Manager từ chối. | Luôn ghim cứng phiên bản khi cài đặt: `apt-get install -y wazuh-agent=4.8.2-1`. |
+| **2** | **Lỗi crash `wazuh-logcollector: Invalid value for element 'log_format': journald` và `wazuh-modulesd: Configuration error`** | Khi từng cài bản 4.14 rồi hạ cấp (downgrade) về 4.8.2, lệnh `dpkg` giữ nguyên file `/var/ossec/etc/ossec.conf` của bản 4.14. Bản 4.8.2 không hỗ trợ `journald` và cú pháp module mới của 4.14. | Script `setup-vm2-agent.sh` tự động sao lưu khóa bí mật `client.keys` ra `/tmp/client.keys.bak`, sau đó chạy `apt-get purge` xóa sạch tàn dư 4.14, cài mới tinh bản 4.8.2 chuẩn và khôi phục lại key. |
+| **3** | **Cảnh báo trùng lặp kho APT (`Target Packages is configured multiple times`)** | Lệnh `echo ... \| tee -a /etc/apt/sources.list.d/wazuh.list` khi chạy nhiều lần sẽ ghi thêm dòng lặp lại. | Dùng lệnh `tee` (ghi đè) thay vì `tee -a` (ghi nối tiếp) để đảm bảo danh sách APT luôn sạch. |
+| **4** | **Active Response không kích hoạt khi dùng `<if_matched_sid>`** | Đặt `<if_matched_sid>100101</if_matched_sid>` (mã lỗi 403) sẽ bị bỏ qua vì các đòn tấn công thực tế khớp vào các luật con chi tiết hơn (`100102` SQLi, `100105` RCE). Wazuh chỉ ghi nhận rule con cuối cùng trong chuỗi. | Dùng điều kiện gom nhóm `<if_matched_group>web_attack</if_matched_group>` cho Rule 100110. Bất kỳ đòn tấn công web nào (SQLi, XSS, LFI, RCE) đều được cộng dồn vào bộ đếm tần suất. |
+| **5** | **Kịch bản test bị khóa giữa chừng khiến các bài test sau bị Time Out** | Nếu đặt ngưỡng khóa quá thấp (`frequency="4"`), kịch bản mới chạy đến bài test thứ 4 (XSS) đã bị khóa, khiến bài test LFI và RCE bị rớt mạng và không hiển thị được bảng kết quả xanh đầy đủ. | Đặt ngưỡng `frequency="8" timeframe="60"`. 6 bài test loại tấn công ở Phase 2 sẽ chạy qua trọn vẹn (`HTTP 403`), sau đó Phase 3 bắn 5 đòn dồn dập (tổng 11 đòn) mới kích hoạt Active Response và Phase 4 tự động kiểm chứng việc khóa IP. |
+| **6** | **Script Active Response nhận tham số IP dạng `"-"` khi đọc JSON** | Khi log ModSecurity ở định dạng JSON, IP nguồn nằm trong trường lồng nhau `data.transaction.client_ip`. Wazuh engine truyền tham số dòng lệnh `$3` là `-`. Lệnh kiểm tra `[ -z "$IP" ]` bị sai khiến iptables cố drop IP `-`. | Script `docker-firewall-drop` bổ sung kiểm tra `if [ -z "$IP" ] \|\| [ "$IP" = "-" ]; then` để chủ động đọc JSON payload từ `stdin` qua `jq` và bóc tách trường `.parameters.alert.data.transaction.client_ip`. |
+| **7** | **iptables chuỗi `INPUT` không chặn được Docker Container** | Do Linux NAT PREROUTING chuyển tiếp gói tin của cổng container thẳng vào chuỗi `FORWARD`, hoàn toàn bỏ qua chuỗi `INPUT`. | Bắt buộc phải viết script Active Response chèn lệnh DROP vào chuỗi **`DOCKER-USER`** (`iptables -I DOCKER-USER -s <IP> -j DROP`). |
 
 ---
 
