@@ -30,15 +30,18 @@ ACTION=$1
 USER=$2
 IP=$3
 
-# Support JSON payload from Wazuh Manager
-if [ -z "$IP" ]; then
+LOG_FILE="/var/ossec/logs/active-responses.log"
+
+# Support reading JSON payload if positional arguments are empty or "-"
+if [ -z "$IP" ] || [ "$IP" = "-" ]; then
     read -r INPUT_JSON
     ACTION=$(echo "$INPUT_JSON" | jq -r '.command // empty')
     IP=$(echo "$INPUT_JSON" | jq -r '.parameters.alert.data.transaction.client_ip // .parameters.alert.srcip // empty')
 fi
 
-# Validate IP address
-if [ -z "$IP" ] || [ "$IP" = "null" ]; then
+# Validate IP address format (IPv4)
+if [ -z "$IP" ] || [ "$IP" = "null" ] || [ "$IP" = "-" ]; then
+    echo "$(date '+%Y/%m/%d %H:%M:%S') docker-firewall-drop: Error: Missing or invalid IP (Action: ${ACTION})" >> "$LOG_FILE"
     logger -t wazuh-ar "[DOCKER-USER] Error: Missing or invalid IP"
     exit 1
 fi
@@ -47,10 +50,12 @@ if [ "$ACTION" = "add" ]; then
     # Check if already present to prevent duplicates
     if ! /sbin/iptables -C DOCKER-USER -s "$IP" -j DROP 2>/dev/null; then
         /sbin/iptables -I DOCKER-USER -s "$IP" -j DROP
+        echo "$(date '+%Y/%m/%d %H:%M:%S') docker-firewall-drop: Successfully BLOCKED attack IP: ${IP} in DOCKER-USER chain" >> "$LOG_FILE"
         logger -t wazuh-ar "[DOCKER-USER] Successfully BLOCKED attack IP: $IP"
     fi
 elif [ "$ACTION" = "delete" ]; then
-    /sbin/iptables -D DOCKER-USER -s "$IP" -j DROP 2>/dev/null
+    /sbin/iptables -D DOCKER-USER -s "$IP" -j DROP 2>/dev/null || true
+    echo "$(date '+%Y/%m/%d %H:%M:%S') docker-firewall-drop: Successfully UNBLOCKED IP: ${IP} from DOCKER-USER chain" >> "$LOG_FILE"
     logger -t wazuh-ar "[DOCKER-USER] Successfully UNBLOCKED IP: $IP"
 fi
 EOF
@@ -59,9 +64,8 @@ EOF
 chmod 750 /var/ossec/active-response/bin/docker-firewall-drop
 chown root:wazuh /var/ossec/active-response/bin/docker-firewall-drop
 
-# Ensure jq is installed for JSON parameter parsing
-apt-get update -y && apt-get install -y jq
+# Ensure jq and iptables are installed
+apt-get update -y && apt-get install -y jq iptables
 
 echo "[✓] Successfully installed /var/ossec/active-response/bin/docker-firewall-drop"
 echo "[✓] Active Response script ready on VM 2."
-

@@ -163,7 +163,12 @@ sudo systemctl restart wazuh-manager
 #### 3. Cấu hình Active Response cho chuỗi `DOCKER-USER` (VM 2 Agent):
 > **Giải thích kỹ thuật:** Docker can thiệp vào iptables trước chuỗi `INPUT`. Muốn chặn request đến Docker container, bắt buộc phải chèn rule vào chuỗi `DOCKER-USER`.
 
-Tạo script thực thi Active Response trên VM 2 tại `/var/ossec/active-response/bin/docker-firewall-drop`:
+Trên VM 2, triển khai nhanh bằng script có sẵn:
+```bash
+sudo bash scripts/setup-vm2-active-response.sh
+```
+
+*(Hoặc tạo file thủ công tại `/var/ossec/active-response/bin/docker-firewall-drop`):*
 ```bash
 sudo tee /var/ossec/active-response/bin/docker-firewall-drop > /dev/null << 'EOF'
 #!/bin/bash
