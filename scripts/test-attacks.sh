@@ -25,7 +25,7 @@ test_request() {
     echo -ne "[*] Testing: ${YELLOW}${test_name}${NC} ... "
     
     local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" "${TARGET_HOST}${uri}")
+    http_code=$(curl -s -L -o /dev/null -w "%{http_code}" "${TARGET_HOST}${uri}")
 
     if [ "$http_code" -eq "$expected_code" ]; then
         echo -e "${GREEN}[PASS] HTTP ${http_code} (As expected)${NC}"

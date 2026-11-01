@@ -199,10 +199,10 @@ sudo bash scripts/setup-vm2-agent.sh 192.168.1.30 vm2-web-target 4.8.2-1
 
 *Script sẽ tự động:*
 1. Cấu hình kho phần mềm Wazuh APT chuẩn (không bị trùng lặp repository).
-2. Cài đặt package `wazuh-agent=4.8.2-1` (hỗ trợ `--allow-downgrades` nếu máy từng cài 4.14).
-3. Dọn dẹp triệt để cấu hình `journald` không tương thích trong `/var/ossec/etc/ossec.conf`.
-4. Cập nhật địa chỉ Manager `<address>192.168.1.30</address>` trong `/var/ossec/etc/ossec.conf`.
-5. Đăng ký nhận key qua lệnh `agent-auth` (tạo `/var/ossec/etc/client.keys`).
+2. Tự động bảo lưu khóa xác thực `/var/ossec/etc/client.keys` (nếu đã từng đăng ký) và dọn sạch các tàn dư file cấu hình không tương thích.
+3. Cài đặt package `wazuh-agent=4.8.2-1` sạch sẽ, chuẩn xác với phiên bản của Manager trên VM 3.
+4. Phục hồi khóa bí mật an toàn (hoặc đăng ký mới qua `agent-auth` nếu chưa có key).
+5. Cập nhật địa chỉ Manager `<address>192.168.1.30</address>` trong `/var/ossec/etc/ossec.conf`.
 6. Chèn block cấu hình đọc log JSON của ModSecurity:
    ```xml
    <localfile>
@@ -210,8 +210,7 @@ sudo bash scripts/setup-vm2-agent.sh 192.168.1.30 vm2-web-target 4.8.2-1
      <location>/var/log/modsec/modsec_audit.log</location>
    </localfile>
    ```
-7. Kiểm tra cú pháp cấu hình với `/var/ossec/bin/wazuh-agentd -t`.
-8. Kích hoạt và khởi động dịch vụ `wazuh-agent`.
+7. Kích hoạt và khởi động dịch vụ `wazuh-agent`.
 
 ---
 
@@ -258,6 +257,8 @@ Wazuh agent_control. List of available agents:
 ### 7.1. Tạo script Active Response trên VM 2 (Agent Host):
 Trên VM 2, bạn có thể chạy nhanh script có sẵn trong repo:
 ```bash
+cd ~/wazuh-modsec-siem-lab
+git pull
 sudo bash scripts/setup-vm2-active-response.sh
 ```
 
@@ -273,15 +274,18 @@ ACTION=$1
 USER=$2
 IP=$3
 
-# Hỗ trợ đọc JSON payload nếu Wazuh gọi qua chuẩn mới
-if [ -z "$IP" ]; then
+LOG_FILE="/var/ossec/logs/active-responses.log"
+
+# Hỗ trợ đọc JSON payload nếu tham số IP trống hoặc là "-"
+if [ -z "$IP" ] || [ "$IP" = "-" ]; then
     read -r INPUT_JSON
     ACTION=$(echo "$INPUT_JSON" | jq -r '.command // empty')
     IP=$(echo "$INPUT_JSON" | jq -r '.parameters.alert.data.transaction.client_ip // .parameters.alert.srcip // empty')
 fi
 
 # Kiểm tra địa chỉ IP hợp lệ
-if [ -z "$IP" ] || [ "$IP" = "null" ]; then
+if [ -z "$IP" ] || [ "$IP" = "null" ] || [ "$IP" = "-" ]; then
+    echo "$(date '+%Y/%m/%d %H:%M:%S') docker-firewall-drop: Error: Missing or invalid IP (Action: ${ACTION})" >> "$LOG_FILE"
     logger -t wazuh-ar "[DOCKER-USER] Error: Missing or invalid IP"
     exit 1
 fi
@@ -290,10 +294,12 @@ if [ "$ACTION" = "add" ]; then
     # Kiểm tra xem rule đã tồn tại chưa để tránh trùng lặp
     if ! /sbin/iptables -C DOCKER-USER -s "$IP" -j DROP 2>/dev/null; then
         /sbin/iptables -I DOCKER-USER -s "$IP" -j DROP
+        echo "$(date '+%Y/%m/%d %H:%M:%S') docker-firewall-drop: Successfully BLOCKED attack IP: ${IP} in DOCKER-USER chain" >> "$LOG_FILE"
         logger -t wazuh-ar "[DOCKER-USER] Successfully BLOCKED attack IP: $IP"
     fi
 elif [ "$ACTION" = "delete" ]; then
-    /sbin/iptables -D DOCKER-USER -s "$IP" -j DROP 2>/dev/null
+    /sbin/iptables -D DOCKER-USER -s "$IP" -j DROP 2>/dev/null || true
+    echo "$(date '+%Y/%m/%d %H:%M:%S') docker-firewall-drop: Successfully UNBLOCKED IP: ${IP} from DOCKER-USER chain" >> "$LOG_FILE"
     logger -t wazuh-ar "[DOCKER-USER] Successfully UNBLOCKED IP: $IP"
 fi
 EOF
@@ -301,6 +307,7 @@ EOF
 # Cấp quyền thực thi an toàn cho tiến trình wazuh
 sudo chmod 750 /var/ossec/active-response/bin/docker-firewall-drop
 sudo chown root:wazuh /var/ossec/active-response/bin/docker-firewall-drop
+sudo apt-get update -y && sudo apt-get install -y jq iptables
 ```
 
 ---
@@ -313,15 +320,16 @@ sudo nano /var/ossec/etc/ossec.conf
 Tìm đến trước thẻ đóng `</ossec_config>` ở cuối file, chèn vào đoạn cấu hình sau:
 
 ```xml
-  <!-- 1. Định nghĩa lệnh gọi script docker-firewall-drop -->
+  <!-- 1. Định nghĩa lệnh gọi script docker-firewall-drop trên Agent -->
   <command>
     <name>docker-firewall-drop</name>
     <executable>docker-firewall-drop</executable>
     <timeout_allowed>yes</timeout_allowed>
   </command>
 
-  <!-- 2. Kích hoạt Active Response khi Rule 100110 nổ -->
+  <!-- 2. Kích hoạt Active Response chặn IP khi Rule 100110 nổ -->
   <active-response>
+    <disabled>no</disabled>
     <command>docker-firewall-drop</command>
     <location>local</location>
     <rules_id>100110</rules_id>
