@@ -29,15 +29,15 @@ Tài liệu này cung cấp lộ trình kỹ thuật chuẩn hóa từ A đến 
 - [x] 2.5 **Chốt chặn 1:** Kiểm thử cục bộ bằng `curl` kiểm tra mã `403` và xác thực JSON log qua `jq .`.
 
 ### Giai đoạn 3: Cấu hình Trung tâm SIEM & Phân tích trên VM 3 (Wazuh AIO)
-- [ ] 3.1 Cài đặt Wazuh All-in-One trên VM 3.
-- [ ] 3.2 Tối ưu hóa JVM Heap Memory cho Wazuh Indexer lên **4GB** (`-Xms4g -Xmx4g`).
-- [ ] 3.3 Sao chép file custom rules `modsec_crs4_rules.xml` vào `/var/ossec/etc/rules/`.
-- [ ] 3.4 Kiểm tra cú pháp rule bằng `wazuh-analysisd -t` và restart `wazuh-manager`.
-- [ ] 3.5 Cài đặt Wazuh Agent trên VM 2 trỏ về VM 3 qua cổng TCP 1514 (tuyệt đối không dùng Syslog UDP 514).
-- [ ] 3.6 Cấu hình directive `<localfile>` đọc file log JSON trên VM 2.
-- [ ] 3.7 Triển khai script Active Response can thiệp chuỗi `DOCKER-USER` của iptables trên VM 2.
-- [ ] 3.8 Khai báo `<command>` và `<active-response>` trên Wazuh Manager kích hoạt ở Rule 100110.
-- [ ] 3.9 (Tùy chọn) Thiết lập tích hợp Webhook thông báo về Telegram Bot khi Alert Level $\ge 12$.
+- [x] 3.1 Cài đặt Wazuh All-in-One trên VM 3.
+- [x] 3.2 Tối ưu hóa JVM Heap Memory cho Wazuh Indexer lên **4GB** (`-Xms4g -Xmx4g`).
+- [x] 3.3 Sao chép file custom rules `modsec_crs4_rules.xml` vào `/var/ossec/etc/rules/`.
+- [x] 3.4 Kiểm tra cú pháp rule bằng `wazuh-analysisd -t` và restart `wazuh-manager`.
+- [x] 3.5 Cài đặt Wazuh Agent trên VM 2 trỏ về VM 3 qua cổng TCP 1514 (tuyệt đối không dùng Syslog UDP 514).
+- [x] 3.6 Cấu hình directive `<localfile>` đọc file log JSON trên VM 2.
+- [x] 3.7 Triển khai script Active Response can thiệp chuỗi `DOCKER-USER` của iptables trên VM 2.
+- [x] 3.8 Khai báo `<command>` và `<active-response>` trên Wazuh Manager kích hoạt ở Rule 100110.
+- [x] 3.9 (Tùy chọn) Thiết lập tích hợp Webhook thông báo về Telegram Bot khi Alert Level $\ge 12$.
 
 ### Giai đoạn 4: Tự động hóa Scripting & Kiểm thử Tấn công
 - [ ] 4.1 Cập nhật script `setup-vm2-agent.sh` tự động nạp biến từ `.env`.
@@ -223,13 +223,16 @@ Khai báo trên Wazuh Manager (VM 3) trong `/var/ossec/etc/ossec.conf`:
 ---
 
 ### GIAI ĐOẠN 4: TỰ ĐỘNG HÓA SCRIPTING & KIỂM THỬ TẤN CÔNG
+> 📖 **Cẩm nang chi tiết từng bước (Kịch bản SQLi, XSS, LFI, RCE, Active Response, Trực quan hóa Dashboard, Unblock):** Xem toàn bộ tại file [**`docs/phase4-attack-simulation.md`**](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/docs/phase4-attack-simulation.md).
 
-#### 1. Cài đặt và kết nối Agent tự động từ VM 2:
+#### 1. Đồng bộ mã nguồn trên VM 1 (Kali Linux `192.168.1.10`):
 ```bash
-sudo bash scripts/setup-vm2-agent.sh
+cd ~/wazuh-modsec-siem-lab
+git checkout -- .
+git pull
 ```
 
-#### 2. Thực hiện tấn công từ máy Attacker (VM 1):
+#### 2. Thực hiện tấn công tự động từ máy Attacker (VM 1):
 ```bash
 bash scripts/test-attacks.sh http://192.168.1.20
 ```

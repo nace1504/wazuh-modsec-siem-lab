@@ -16,7 +16,8 @@ Dự án triển khai mô hình phòng lab SOC / SIEM chuẩn công nghiệp gi�
 │   ├── phase0-vmware-setup.md         # Cẩm nang chi tiết thiết lập hạ tầng ảo hóa VMware
 │   ├── phase1-workspace-env-setup.md  # Cẩm nang chi tiết quản trị cấu hình (.env, Git, SSH)
 │   ├── phase2-waf-docker-setup.md     # Cẩm nang chi tiết triển khai WAF ModSecurity CRS v4 & DVWA
-│   └── phase3-wazuh-siem-setup.md     # Cẩm nang chi tiết cấu hình Wazuh SIEM, Rules & Active Response
+│   ├── phase3-wazuh-siem-setup.md     # Cẩm nang chi tiết cấu hình Wazuh SIEM, Rules & Active Response
+│   └── phase4-attack-simulation.md    # Cẩm nang chi tiết giả lập tấn công, xác thực phòng vệ & unblock
 ├── vm2-web-target/                    # Phân vùng VM 2: Web Server & WAF (Docker Host)
 │   ├── docker-compose.yml             # Quản lý Nginx/ModSecurity, DVWA và bind-mount log
 │   └── docker/
@@ -35,7 +36,8 @@ Dự án triển khai mô hình phòng lab SOC / SIEM chuẩn công nghiệp gi�
 │       └── modsec_crs4_rules.xml      # File luật tùy chỉnh bắt sự kiện JSON, mã 403 và Active Response
 └── scripts/                           # Các công cụ tự động hóa và kịch bản kiểm thử
     ├── setup-vm2-agent.sh             # Script cài đặt Wazuh Agent trên VM 2 và kết nối về VM 3
-    └── test-attacks.sh                # Script giả lập tấn công (SQLi, XSS, Path Traversal) để test SIEM
+    ├── setup-vm2-active-response.sh   # Script cấu hình Active Response chuỗi DOCKER-USER trên VM 2
+    └── test-attacks.sh                # Script giả lập tấn công tự động (SQLi, XSS, LFI, RCE, Active Response)
 ```
 
 ---
