@@ -177,45 +177,56 @@ sudo /var/ossec/bin/wazuh-analysisd -t
 
 Đăng nhập vào máy ảo **VM 2** (`ssh admin@192.168.1.20`):
 
+> [!IMPORTANT]
+> **Quy tắc phiên bản bắt buộc (Version Compatibility):**
+> Wazuh Manager thực thi kiểm tra tính tương thích nghiêm ngặt: *`Agent version must be lower or equal to manager version`*.
+> Do Wazuh Manager trên VM 3 đang là phiên bản **`4.8.2-1`**, Wazuh Agent trên VM 2 bắt buộc phải được cài đúng phiên bản **`4.8.2-1`** (nếu cài phiên bản mới hơn như 4.14 sẽ bị Manager từ chối kết nối).
+> Đồng thời, phiên bản 4.8.2 không hỗ trợ định dạng log `<log_format>journald</log_format>` (tính năng mới ở 4.14), script cài đặt đã được tối ưu để tự động dọn dẹp các khối cấu hình này và kiểm tra cú pháp an toàn trước khi khởi động.
+
 ### 6.1. Thực thi script cài đặt tự động:
-Tại thư mục repo trên VM 2, chạy script [`setup-vm2-agent.sh`](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/scripts/setup-vm2-agent.sh):
+Tại thư mục repo trên VM 2, chạy các lệnh sau (nếu trước đó có thay đổi file cục bộ, hãy reset trước khi pull):
 
 ```bash
 cd ~/wazuh-modsec-siem-lab
+
+# Đảm bảo đồng bộ bản code mới nhất từ git
+git checkout -- scripts/setup-vm2-agent.sh
+git pull
+
+# Chạy script cài đặt và đăng ký Agent
 sudo bash scripts/setup-vm2-agent.sh 192.168.1.30 vm2-web-target 4.8.2-1
 ```
 
 *Script sẽ tự động:*
-1. Thêm kho phần mềm (GPG Key & Repository) chính thức của Wazuh.
-2. Cài đặt package `wazuh-agent`.
-3. Cập nhật địa chỉ Manager `<address>192.168.1.30</address>` trong `/var/ossec/etc/ossec.conf`.
-4. Gọi lệnh `agent-auth` đăng ký nhận khóa mã hóa (`client.keys`).
-5. Tự động chèn block cấu hình đọc file log JSON vào `/var/ossec/etc/ossec.conf`:
+1. Cấu hình kho phần mềm Wazuh APT chuẩn (không bị trùng lặp repository).
+2. Cài đặt package `wazuh-agent=4.8.2-1` (hỗ trợ `--allow-downgrades` nếu máy từng cài 4.14).
+3. Dọn dẹp triệt để cấu hình `journald` không tương thích trong `/var/ossec/etc/ossec.conf`.
+4. Cập nhật địa chỉ Manager `<address>192.168.1.30</address>` trong `/var/ossec/etc/ossec.conf`.
+5. Đăng ký nhận key qua lệnh `agent-auth` (tạo `/var/ossec/etc/client.keys`).
+6. Chèn block cấu hình đọc log JSON của ModSecurity:
    ```xml
    <localfile>
      <log_format>json</log_format>
      <location>/var/log/modsec/modsec_audit.log</location>
    </localfile>
    ```
-6. Kích hoạt và bật dịch vụ `wazuh-agent`.
+7. Kiểm tra cú pháp cấu hình với `/var/ossec/bin/wazuh-agentd -t`.
+8. Kích hoạt và khởi động dịch vụ `wazuh-agent`.
 
 ---
 
-### 6.2. Xác thực và đăng ký bổ sung qua `agent-auth` (Bắt buộc nếu chưa nhận key):
-> [!IMPORTANT]
-> **Cơ chế xác thực của Wazuh Agent:**
-> Để Agent có thể mã hóa và gửi dữ liệu qua cổng TCP 1514, Agent bắt buộc phải có khóa bí mật được lưu trong `/var/ossec/etc/client.keys`. Khóa này được cấp qua kênh đăng ký TCP 1515 bởi lệnh `agent-auth`.
-
-Nếu kiểm tra file key chưa có hoặc Agent chưa kết nối, chạy lệnh đăng ký trực tiếp trên VM 2:
+### 6.2. Kiểm tra trạng thái Agent trên VM 2:
+Sau khi script hoàn tất, kiểm tra trạng thái dịch vụ Agent:
 ```bash
-sudo /var/ossec/bin/agent-auth -m 192.168.1.30 -A vm2-web-target
+sudo systemctl status wazuh-agent
 ```
-* **Kết quả kỳ vọng:** In ra dòng `INFO: Valid key created. Closing connection.`
-* Sau đó khởi động lại Agent:
-  ```bash
-  sudo systemctl restart wazuh-agent
-  sudo systemctl status wazuh-agent
-  ```
+* **Kết quả kỳ vọng:** Dịch vụ hiển thị trạng thái `active (running)`.
+
+Nếu muốn kiểm tra file log chi tiết:
+```bash
+sudo tail -n 20 /var/ossec/logs/ossec.log
+```
+* **Kết quả kỳ vọng:** Thấy các dòng `INFO: (1410): Reading configuration file: 'etc/ossec.conf'` và `INFO: Connected to the server: 192.168.1.30`.
 
 ---
 
@@ -245,7 +256,12 @@ Wazuh agent_control. List of available agents:
 ---
 
 ### 7.1. Tạo script Active Response trên VM 2 (Agent Host):
-Trên VM 2, tạo file script thực thi:
+Trên VM 2, bạn có thể chạy nhanh script có sẵn trong repo:
+```bash
+sudo bash scripts/setup-vm2-active-response.sh
+```
+
+*(Hoặc nếu muốn tạo thủ công, tạo file `/var/ossec/active-response/bin/docker-firewall-drop`):*
 ```bash
 sudo tee /var/ossec/active-response/bin/docker-firewall-drop > /dev/null << 'EOF'
 #!/bin/bash
