@@ -16,10 +16,10 @@ Tài liệu này cung cấp lộ trình kỹ thuật chuẩn hóa từ A đến 
 - [x] 0.7 **Chốt chặn 0:** Kiểm tra ma trận ping chéo 3 máy và kiểm tra ra Internet thành công.
 
 ### Giai đoạn 1: Khởi tạo Workspace & Quản trị Cấu hình
-- [ ] 1.1 Khởi tạo file biến môi trường `.env` từ `.env.example`.
-- [ ] 1.2 Cấu hình định tuyến địa chỉ IP (`WAZUH_MANAGER_IP`, `TARGET_IP`, `ATTACKER_IP`).
-- [ ] 1.3 Kiểm tra `.gitignore` bảo vệ thông tin nhạy cảm và file log.
-- [ ] 1.4 Kiểm tra phân quyền thực thi các bash script (`chmod +x scripts/*.sh`).
+- [x] 1.1 Khởi tạo file biến môi trường `.env` từ `.env.example`.
+- [x] 1.2 Cấu hình định tuyến địa chỉ IP (`WAZUH_MANAGER_IP`, `TARGET_IP`, `ATTACKER_IP`).
+- [x] 1.3 Kiểm tra `.gitignore` bảo vệ thông tin nhạy cảm và file log.
+- [x] 1.4 Kiểm tra phân quyền thực thi các bash script (`chmod +x scripts/*.sh`).
 
 ### Giai đoạn 2: Xây dựng Lớp WAF & Docker trên VM 2 (Web Target)
 - [ ] 2.1 Tạo thư mục `/var/log/modsec` và cấp quyền ghi cho container (`chmod 755`, file `666`).
@@ -96,6 +96,7 @@ Tài liệu này cung cấp lộ trình kỹ thuật chuẩn hóa từ A đến 
 ---
 
 ### GIAI ĐOẠN 2: XÂY DỰNG LỚP WAF & DOCKER TRÊN VM 2 (WEB TARGET)
+> 📖 **Cẩm nang chi tiết từng bước (Docker Compose, ModSec CRS v4, JSON Log, curl tests):** Xem toàn bộ tại file [**`docs/phase2-waf-docker-setup.md`**](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/docs/phase2-waf-docker-setup.md).
 
 #### 1. Tạo thư mục chứa log trên Host OS:
 ```bash

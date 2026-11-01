@@ -1,4 +1,4 @@
-FROM owasp/modsecurity-crs:4-nginx-alpine
+FROM owasp/modsecurity-crs:nginx-alpine
 
 USER root
 

@@ -208,10 +208,10 @@ git clone https://github.com/<USERNAME_CUA_BAN>/wazuh-modsec-siem-lab.git
    type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh kali@192.168.1.10 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
    # Đẩy lên VM 2 (Web Target)
-   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh admin@192.168.1.20 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh ubuntu@192.168.1.20 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
    # Đẩy lên VM 3 (Wazuh SIEM)
-   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh admin@192.168.1.30 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh ubuntu@192.168.1.30 "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
    ```
 
 ---
@@ -227,12 +227,12 @@ Host vm1-attacker
 
 Host vm2-target
     HostName 192.168.1.20
-    User admin
+    User ubuntu
     IdentityFile ~/.ssh/id_ed25519
 
 Host vm3-wazuh
     HostName 192.168.1.30
-    User admin
+    User ubuntu
     IdentityFile ~/.ssh/id_ed25519
 ```
 

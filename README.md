@@ -14,7 +14,8 @@ Dự án triển khai mô hình phòng lab SOC / SIEM chuẩn công nghiệp gi�
 │   ├── architecture.md                # Tài liệu kiến trúc hệ thống chuẩn hóa
 │   ├── deployment-plan.md              # Kế hoạch triển khai chi tiết & Master Checklist
 │   ├── phase0-vmware-setup.md         # Cẩm nang chi tiết thiết lập hạ tầng ảo hóa VMware
-│   └── phase1-workspace-env-setup.md  # Cẩm nang chi tiết quản trị cấu hình (.env, Git, SSH)
+│   ├── phase1-workspace-env-setup.md  # Cẩm nang chi tiết quản trị cấu hình (.env, Git, SSH)
+│   └── phase2-waf-docker-setup.md     # Cẩm nang chi tiết triển khai WAF ModSecurity CRS v4 & DVWA
 ├── vm2-web-target/                    # Phân vùng VM 2: Web Server & WAF (Docker Host)
 │   ├── docker-compose.yml             # Quản lý Nginx/ModSecurity, DVWA và bind-mount log
 │   └── docker/
