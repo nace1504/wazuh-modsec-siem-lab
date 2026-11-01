@@ -64,3 +64,4 @@ apt-get update -y && apt-get install -y jq
 
 echo "[✓] Successfully installed /var/ossec/active-response/bin/docker-firewall-drop"
 echo "[✓] Active Response script ready on VM 2."
+
