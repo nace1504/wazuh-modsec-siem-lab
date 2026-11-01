@@ -67,9 +67,9 @@
 
   <!-- Rule: High frequency attacks from same IP -> Trigger Active Response -->
   <rule id="100110" level="14" frequency="4" timeframe="60">
-    <if_matched_sid>100101</if_matched_sid>
+    <if_matched_group>web_attack</if_matched_group>
     <same_field>transaction.client_ip</same_field>
-    <description>ModSecurity: Multiple Web Attacks from same IP in 60s - Triggering Active Response</description>
+    <description>ModSecurity: Multiple Web Attacks from same IP ($(transaction.client_ip)) in 60s - Triggering Active Response</description>
     <mitre>
       <id>T1190</id>
     </mitre>
