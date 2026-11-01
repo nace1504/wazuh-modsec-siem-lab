@@ -18,7 +18,7 @@ Tài liệu này là cẩm nang kỹ thuật hướng dẫn chi tiết từng b�
 │   │ Docker Bridge Network: target-net                   │   │
 │   │                                                     │   │
 │   │   ┌───────────────────────────┐                     │   │
-│   │   │ Container: modsec-waf     │ (Mở cổng 80:80)     │   │
+│   │   │ Container: modsec-waf     │ (Mở cổng 80 -> 8080)│   │
 │   │   │ - Nginx Reverse Proxy     │                     │   │
 │   │   │ - ModSecurity v3 Engine   │                     │   │
 │   │   │ - OWASP CRS v4 Ruleset    │                     │   │
@@ -102,37 +102,18 @@ ls -l /var/log/modsec/modsec_audit.log
 
 ---
 
-## 🔍 5. BƯỚC 2: PHÂN TÍCH CẤU HÌNH WAF & REVERSE PROXY
+## 🔍 5. BƯỚC 2: CẤU HÌNH WAF & REVERSE PROXY NATIVE QUA BIẾN MÔI TRƯỜNG
 
-### 5.1. File cấu hình WAF lõi ([`docker/modsecurity/conf/modsec.conf`](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/vm2-web-target/docker/modsecurity/conf/modsec.conf))
-Các chỉ thị kỹ thuật quyết định sự thành bại của SIEM:
-* **`SecRuleEngine On`:** Bật chế độ phòng thủ chủ động (Chặn & Ghi log). Nếu để `DetectionOnly` thì WAF chỉ ghi log mà không chặn.
-* **`SecAuditLogFormat JSON`:** **Cực kỳ quan trọng**. Ép ModSecurity ghi dữ liệu dạng Single-line JSON thay vì định dạng Native nhiều phần ngắt dòng truyền thống.
-* **`SecAuditLogRelevantStatus "^(?:5|4(?!04))"`:** Chỉ ghi nhận các request bị chặn (mã 4xx, trừ 404 để lọc nhiễu) hoặc lỗi máy chủ (mã 5xx).
-* **`SecAuditLog /var/log/modsec/modsec_audit.log`:** Đường dẫn file log bên trong container (được map ra host).
-* **`SecDefaultAction "phase:1,log,auditlog,deny,status:403"`:** Hành động mặc định khi vi phạm luật là chặn đứng với mã HTTP 403.
+Image chính thức **`owasp/modsecurity-crs:nginx-alpine`** được thiết kế để cấu hình toàn diện thông qua **Environment Variables** (biến môi trường trong `docker-compose.yml`), giúp Nginx tự động sinh file cấu hình và tải sẵn bộ luật CRS v4 mà không gây xung đột hệ thống tệp:
 
----
-
-### 5.2. File cấu hình Reverse Proxy ([`docker/modsecurity/conf/nginx.conf`](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/vm2-web-target/docker/modsecurity/conf/nginx.conf))
-* **Bật ModSecurity trong Nginx:**
-  ```nginx
-  modsecurity on;
-  modsecurity_rules_file /etc/nginx/modsec/modsec.conf;
-  ```
-* **Chuyển tiếp lưu lượng an toàn đến DVWA backend:**
-  ```nginx
-  upstream dvwa_backend {
-      server dvwa:80;
-  }
-  location / {
-      proxy_pass http://dvwa_backend;
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-  }
-  ```
+* **`BACKEND=http://dvwa:80`:** Nginx tự động thiết lập Reverse Proxy chuyển tiếp lưu lượng an toàn đến container `dvwa:80`.
+* **`PORT=80`:** Cổng lắng nghe chính của WAF.
+* **`MODSEC_RULE_ENGINE=on`:** Kích hoạt chế độ phòng thủ chủ động (Chặn & Ghi log).
+* **`MODSEC_AUDIT_ENGINE=RelevantOnly`:** Chỉ ghi log các giao dịch bất thường (4xx, 5xx) để tối ưu hiệu năng.
+* **`MODSEC_AUDIT_LOG=/var/log/modsec/modsec_audit.log`:** Đường dẫn file log kiểm toán gắn kết (mount) ra Host OS.
+* **`MODSEC_AUDIT_LOG_FORMAT=JSON`:** **Cực kỳ quan trọng.** Ép ModSecurity xuất log định dạng **Single-line JSON** phục vụ Wazuh Agent.
+* **`MODSEC_AUDIT_LOG_TYPE=Serial` & `MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ`:** Cấu trúc chi tiết các phần của HTTP transaction.
+* **`MODSEC_AUDIT_LOG_RELEVANT_STATUS=^(?:5|4(?!04))`:** Lọc bỏ mã 404 để tránh làm tràn ngập log.
 
 ---
 

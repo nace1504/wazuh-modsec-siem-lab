@@ -1,15 +1,21 @@
 services:
   modsec-waf:
-    build:
-      context: ./docker/modsecurity
-      dockerfile: Dockerfile
+    image: owasp/modsecurity-crs:nginx-alpine
     container_name: modsec-waf
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:8080"
+    environment:
+      - BACKEND=http://dvwa:80
+      - PORT=8080
+      - MODSEC_RULE_ENGINE=on
+      - MODSEC_AUDIT_ENGINE=RelevantOnly
+      - MODSEC_AUDIT_LOG=/var/log/modsec/modsec_audit.log
+      - MODSEC_AUDIT_LOG_FORMAT=JSON
+      - MODSEC_AUDIT_LOG_TYPE=Serial
+      - MODSEC_AUDIT_LOG_PARTS=ABIJDEFHZ
+      - MODSEC_AUDIT_LOG_RELEVANT_STATUS=^(?:5|4(?!04))
     volumes:
-      - ./docker/modsecurity/conf/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./docker/modsecurity/conf/modsec.conf:/etc/nginx/modsec/modsec.conf:ro
       - /var/log/modsec:/var/log/modsec
     depends_on:
       - dvwa
