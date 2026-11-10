@@ -328,3 +328,6 @@ Giai đoạn 4 đã hoàn tất xuất sắc chu trình khép kín của một t
 $$\text{Attack (Kali)} \longrightarrow \text{Detect \& Block (WAF)} \longrightarrow \text{Ingest \& Analyze (SIEM)} \longrightarrow \text{Active Response (Auto Drop)}$$
 
 Hệ thống đã đạt đầy đủ các tiêu chuẩn kỹ thuật để bảo vệ thành công đồ án tốt nghiệp!
+
+👉 Tiếp theo: **Giai đoạn 5 – Mở rộng giám sát Endpoint Windows 10 (VM 4)** tại [**`docs/phase5-windows-endpoint-setup.md`**](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/docs/phase5-windows-endpoint-setup.md).
+

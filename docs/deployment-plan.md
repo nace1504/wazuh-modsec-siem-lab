@@ -51,10 +51,20 @@ Tài liệu này cung cấp lộ trình kỹ thuật chuẩn hóa từ A đến 
 - [ ] 4.3 Xác thực Active Response: Kiểm tra iptables chuỗi `DOCKER-USER` đã drop IP VM 1.
 - [ ] 4.4 Xác minh các sự kiện và Dashboard hiển thị đầy đủ trên Wazuh Dashboard Web UI.
 
-### Giai đoạn 5: Sẵn sàng Triển khai Cloud (Production Ready)
-- [ ] 5.1 Cấu hình Security Group / UFW trên Cloud (mở port 80, 443, 1514; đóng chặt port 9200, 55000).
-- [ ] 5.2 Kiểm tra chứng chỉ SSL/TLS cho Wazuh Dashboard và Nginx Reverse Proxy.
-- [ ] 5.3 Lập lịch tự động xoay vòng log (logrotate) cho `/var/log/modsec/modsec_audit.log`.
+### Giai đoạn 5: Giám sát Endpoint Windows 10 trên VM 4 (Wazuh Agent + Sysmon + Active Response)
+- [ ] 5.1 Khởi tạo **VM 4 (Windows 10 Client)**, IP tĩnh `192.168.1.40`, kết nối được VM 3 cổng `1514`/`1515`.
+- [ ] 5.2 Tạo agent group `windows` và nạp `vm3-wazuh-manager/shared/windows/agent.conf` (`verify-agent-conf`).
+- [ ] 5.3 Nạp `windows_rules.xml` (Rule `100200`-`100213`) và kiểm tra `wazuh-analysisd -t`.
+- [ ] 5.4 Khai báo `<command>`/`<active-response>` `win-firewall-drop` kích hoạt ở Rule `100201`.
+- [ ] 5.5 Chạy `setup-vm4-windows-agent.ps1`: Agent `4.8.2-1`, Sysmon, Audit Policy, Script Block Logging, AR script.
+- [ ] 5.6 Chạy `simulate-windows-events.ps1` trên VM 4 và xác nhận các cảnh báo Persistence / Execution / Discovery / Credential Access.
+- [ ] 5.7 Chạy `test-windows-attacks.sh` từ VM 1: Rule `100201` (Level 12) kích hoạt và Windows Firewall chặn IP Kali.
+- [ ] 5.8 Xác minh cảnh báo của `vm4-win-client` trên Dashboard và module MITRE ATT&CK.
+
+### Giai đoạn 6: Sẵn sàng Triển khai Cloud (Production Ready)
+- [ ] 6.1 Cấu hình Security Group / UFW trên Cloud (mở port 80, 443, 1514; đóng chặt port 9200, 55000).
+- [ ] 6.2 Kiểm tra chứng chỉ SSL/TLS cho Wazuh Dashboard và Nginx Reverse Proxy.
+- [ ] 6.3 Lập lịch tự động xoay vòng log (logrotate) cho `/var/log/modsec/modsec_audit.log`.
 
 ---
 
@@ -254,15 +264,66 @@ bash scripts/test-attacks.sh http://192.168.1.20
 
 ---
 
-### GIAI ĐOẠN 5: SẴN SÀNG TRIỂN KHAI CLOUD (PRODUCTION READY)
+### GIAI ĐOẠN 5: GIÁM SÁT ENDPOINT WINDOWS 10 TRÊN VM 4
+> 📖 **Cẩm nang chi tiết từng bước (Agent group, Sysmon, Audit Policy, Windows Rules, Active Response Windows Firewall, kịch bản kiểm thử):** Xem toàn bộ tại file [**`docs/phase5-windows-endpoint-setup.md`**](file:///d:/DOANHUUNGUYEN/HOCTAP/ĐẠI%20HỌC%20TẠI%20HỌC%20VIỆN%20HOÀNG%20GIA%20(%20PTIT%20)/DATN/wazuh-modsec-siem-lab/docs/phase5-windows-endpoint-setup.md).
+
+#### 1. Chuẩn bị Wazuh Manager (VM 3) – bắt buộc làm trước khi cài Agent:
+```bash
+cd ~/wazuh-modsec-siem-lab && git pull
+sudo /var/ossec/bin/agent_groups -a -g windows -q
+sudo cp vm3-wazuh-manager/shared/windows/agent.conf /var/ossec/etc/shared/windows/agent.conf
+sudo cp vm3-wazuh-manager/custom-rules/windows_rules.xml /var/ossec/etc/rules/
+sudo chown wazuh:wazuh /var/ossec/etc/shared/windows/agent.conf /var/ossec/etc/rules/windows_rules.xml
+sudo chmod 660 /var/ossec/etc/shared/windows/agent.conf /var/ossec/etc/rules/windows_rules.xml
+```
+Khai báo trong `/var/ossec/etc/ossec.conf`:
+```xml
+<command>
+  <name>win-firewall-drop</name>
+  <executable>win-firewall-drop.cmd</executable>
+  <timeout_allowed>yes</timeout_allowed>
+</command>
+
+<active-response>
+  <disabled>no</disabled>
+  <command>win-firewall-drop</command>
+  <location>local</location>
+  <rules_id>100201</rules_id>
+  <timeout>600</timeout>
+</active-response>
+```
+```bash
+sudo /var/ossec/bin/verify-agent-conf
+sudo /var/ossec/bin/wazuh-analysisd -t
+sudo systemctl restart wazuh-manager
+```
+
+#### 2. Cài đặt trên VM 4 (PowerShell Run as Administrator):
+```powershell
+cd C:\wazuh-modsec-siem-lab
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-vm4-windows-agent.ps1 -ManagerIP 192.168.1.30 -AgentName vm4-win-client
+```
+
+#### 3. Chốt chặn kiểm thử 3 (Verification Checkpoint 3):
+1. **VM 3:** `sudo /var/ossec/bin/agent_control -l` → `vm4-win-client` ở trạng thái **Active**.
+2. **VM 4:** `powershell -ExecutionPolicy Bypass -File .\scripts\simulate-windows-events.ps1` → các Rule `100202`, `100203`, `100210`-`100213` xuất hiện.
+3. **VM 1:** `bash scripts/test-windows-attacks.sh 192.168.1.40` → Rule `100201` kích hoạt, cổng 445 của VM 4 bị timeout.
+4. **Gỡ chặn trên VM 4:**
+   ```powershell
+   & 'C:\Program Files (x86)\ossec-agent\active-response\bin\win-firewall-drop.cmd' delete 192.168.1.10
+   ```
+
+---
+
+### GIAI ĐOẠN 6: SẴN SÀNG TRIỂN KHAI CLOUD (PRODUCTION READY)
 
 #### 1. Thiết lập Security Groups / Cloud Firewall:
 * **VM 2 (Web Target):**
   * `Port 80 / 443 TCP`: Mở công khai `0.0.0.0/0`
   * `Port 22 TCP`: Chỉ cho phép IP quản trị (Admin IP)
 * **VM 3 (Wazuh SIEM):**
-  * `Port 1514 TCP`: Chỉ cho phép Public IP của VM 2 kết nối
-  * `Port 1515 TCP`: Đăng ký Agent (chỉ mở khi đăng ký hoặc restrict theo IP VM 2)
+  * `Port 1514 TCP`: Chỉ cho phép Public IP của các Agent (VM 2, VM 4) kết nối
+  * `Port 1515 TCP`: Đăng ký Agent (chỉ mở khi đăng ký hoặc restrict theo IP VM 2, VM 4)
   * `Port 443 TCP`: Truy cập Dashboard (chỉ Admin IP)
   * `Port 9200, 55000 TCP`: **Chặn hoàn toàn từ Internet**
 

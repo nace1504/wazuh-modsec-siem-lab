@@ -37,9 +37,20 @@ flowchart TD
         WazuhDash -->|"Truy vấn log"| WazuhIndexer
     end
 
+    subgraph VM4 ["VM 4: Windows 10 Client (Endpoint - .40)"]
+        WinLogs["Windows Event Log<br/>(Security, Sysmon, PowerShell 4104)"]
+        WinAgent["Wazuh Agent (WazuhSvc)<br/>group: windows"]
+        WinFW["Windows Defender Firewall<br/>(win-firewall-drop)"]
+        WinLogs -->|"&lt;log_format&gt;eventchannel&lt;/log_format&gt;"| WinAgent
+        WinAgent -->|"Thêm rule chặn IP"| WinFW
+    end
+
     AttackScript -->|"HTTP Requests (Attack Payload)"| WAF
+    AttackScript -->|"SMB Brute-force (TCP 445)"| WinFW
     WazuhAgent -->|"Encrypted Agent Channel (TCP 1514)"| WazuhMgr
     WazuhMgr -.->|"Lệnh Active Response (Firewall Drop)"| WazuhAgent
+    WinAgent -->|"Encrypted Agent Channel (TCP 1514)"| WazuhMgr
+    WazuhMgr -.->|"Lệnh Active Response (Rule 100201)"| WinAgent
 ```
 
 ---
@@ -98,6 +109,21 @@ flowchart TD
 
 ---
 
+### 2.4. VM 4: Windows 10 Client (Endpoint - `192.168.1.40`)
+* **Vai trò**: Mô phỏng máy trạm người dùng trong doanh nghiệp, mở rộng phạm vi giám sát của SIEM từ tầng Web sang tầng **Endpoint**.
+* **Các thành phần cốt lõi**:
+  1. **Nguồn telemetry**:
+     * **Security Event Log** với Advanced Audit Policy (Logon, User Account Management, Security Group Management, Process Creation).
+     * **Sysmon** (cấu hình SwiftOnSecurity): ghi nhận tạo tiến trình kèm command line, tiến trình cha, hash.
+     * **PowerShell Script Block Logging** (Event 4104): ghi lại nội dung script thực thi, kể cả lệnh đã giải mã từ `-EncodedCommand`.
+  2. **Wazuh Agent** (dịch vụ `WazuhSvc`, phiên bản `4.8.2-1`):
+     * Thuộc **agent group `windows`**; nhận cấu hình tập trung `agent.conf` từ Manager (các kênh Sysmon, PowerShell, Defender).
+     * Gửi sự kiện về Manager qua cổng **TCP 1514**.
+  3. **Bộ luật `windows_rules.xml` (Rule `100200`-`100213`) trên VM 3**: phát hiện Brute-force (T1110), tạo tài khoản (T1136), leo thang đặc quyền (T1098), PowerShell mã hóa (T1059.001), trinh sát (T1033), dump thông tin xác thực (T1003.001), xóa log (T1070.001).
+  4. **Active Response `win-firewall-drop`**: khi Rule `100201` (brute-force $\ge 8$ lần/60s) kích hoạt, Agent tạo rule `WazuhAR-Block-<IP>` trong **Windows Defender Firewall**, tự gỡ sau 600 giây.
+
+---
+
 ## 3. Quy Hoạch Mạng & Port Matrix
 
 | Node | Địa Chỉ IP | Dịch Vụ | Port | Giao Thức | Chức Năng |
@@ -107,6 +133,10 @@ flowchart TD
 | | | DVWA Application | `80` (Internal) | TCP | Backend ứng dụng web |
 | | | Wazuh Agent | Client | TCP | Đẩy log bảo mật về VM 3 |
 | **VM 3** | `192.168.1.30` | Wazuh Manager | `1514` | TCP | Tiếp nhận log từ Agent |
+| | | Wazuh Enrollment | `1515` | TCP | Đăng ký Agent mới (authd) |
 | | | Wazuh API | `55000` | TCP (HTTPS) | Quản trị API và xác thực Agent |
 | | | Wazuh Indexer | `9200` | TCP (HTTPS) | Lưu trữ chỉ mục log (OpenSearch) |
 | | | Wazuh Dashboard | `443` | TCP (HTTPS) | Giao diện điều khiển Web UI |
+| **VM 4** | `192.168.1.40` | Wazuh Agent (WazuhSvc) | Client | TCP | Đẩy Event Log / Sysmon về VM 3 |
+| | | SMB | `445` | TCP | Bề mặt tấn công brute-force (chỉ mở cho `192.168.1.0/24`) |
+| | | Remote Desktop | `3389` | TCP | Quản trị từ xa (chỉ mở cho `192.168.1.0/24`) |

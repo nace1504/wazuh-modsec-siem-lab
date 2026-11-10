@@ -1,0 +1,125 @@
+<!--
+  Custom Wazuh Rules for Windows Endpoint (VM 4 - Windows 10 + Sysmon)
+  File location on Wazuh Manager (VM 3): /var/ossec/etc/rules/windows_rules.xml
+
+  Notes:
+  - Rules hang off built-in Wazuh groups (authentication_failed, windows, sysmon_event1)
+    via <if_group>, so they are evaluated after the stock Windows/Sysmon decoders & rules.
+  - The wrapper group intentionally does NOT include "windows" or "web_attack":
+    a rule must not be a member of the group it uses in <if_group> (self-parenting),
+    and web_attack is reserved for the ModSecurity correlation rule 100110.
+  - Rule 100201 triggers Active Response "win-firewall-drop" on VM 4.
+-->
+<group name="custom_windows,">
+
+  <!-- ===================== Windows Security channel ===================== -->
+
+  <!-- Failed logon (Event 4625) -->
+  <rule id="100200" level="5">
+    <if_group>authentication_failed</if_group>
+    <field name="win.system.eventID">^4625$</field>
+    <description>Windows: Failed logon for user $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress) (LogonType $(win.eventdata.logonType))</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+    <group>win_logon_failure,</group>
+  </rule>
+
+  <!-- Brute-force: 8+ failed logons in 60s from same source IP -> Active Response -->
+  <rule id="100201" level="12" frequency="8" timeframe="60">
+    <if_matched_sid>100200</if_matched_sid>
+    <same_field>win.eventdata.ipAddress</same_field>
+    <description>Windows: Brute-force attack (8+ failed logons in 60s) from $(win.eventdata.ipAddress) - Triggering Active Response</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+    <group>win_bruteforce,active_response,pci_dss_10.2.4,pci_dss_11.4,</group>
+  </rule>
+
+  <!-- New local user account created (Event 4720) -->
+  <rule id="100202" level="8">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4720$</field>
+    <description>Windows: New user account created: $(win.eventdata.targetUserName) (by $(win.eventdata.subjectUserName))</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+    <group>win_account_change,</group>
+  </rule>
+
+  <!-- Member added to local Administrators group (Event 4732, SID S-1-5-32-544 is language-independent) -->
+  <rule id="100203" level="12">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4732$</field>
+    <field name="win.eventdata.targetSid">^S-1-5-32-544$</field>
+    <description>Windows: Account $(win.eventdata.memberSid) added to local Administrators group (by $(win.eventdata.subjectUserName))</description>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+    <group>win_account_change,win_privilege_escalation,</group>
+  </rule>
+
+  <!-- Security audit log cleared (Event 1102) -->
+  <rule id="100204" level="13">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^1102$</field>
+    <description>Windows: Security audit log was cleared (possible anti-forensics)</description>
+    <mitre>
+      <id>T1070.001</id>
+    </mitre>
+    <group>win_defense_evasion,</group>
+  </rule>
+
+  <!-- ===================== Sysmon (Event 1: Process creation) ===================== -->
+
+  <!-- PowerShell launched with -EncodedCommand (or short forms -e / -en / -enc / -ec) -->
+  <rule id="100210" level="12">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(powershell|pwsh)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)\s[-/]e(c|n|nc|nco|ncod|ncode|ncoded|ncodedcommand)?\s</field>
+    <description>Sysmon: PowerShell executed with encoded command (parent: $(win.eventdata.parentImage))</description>
+    <mitre>
+      <id>T1059.001</id>
+      <id>T1027</id>
+    </mitre>
+    <group>win_execution,</group>
+  </rule>
+
+  <!-- Local discovery: whoami /priv|/all|/groups, net user, net localgroup -->
+  <rule id="100211" level="8">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.image" type="pcre2">(?i)\\(whoami|net1?)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(/priv|/all|/groups|\buser\b|\blocalgroup\b)</field>
+    <description>Sysmon: Account/privilege discovery command: $(win.eventdata.commandLine)</description>
+    <mitre>
+      <id>T1033</id>
+      <id>T1087.001</id>
+    </mitre>
+    <group>win_discovery,</group>
+  </rule>
+
+  <!-- Credential dumping indicators in command line (mimikatz / sekurlsa / lsadump / procdump lsass) -->
+  <rule id="100212" level="14">
+    <if_group>sysmon_event1</if_group>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)(mimikatz|sekurlsa::|lsadump::|procdump.*lsass)</field>
+    <description>Sysmon: Credential dumping tool indicator in command line: $(win.eventdata.commandLine)</description>
+    <mitre>
+      <id>T1003.001</id>
+    </mitre>
+    <group>win_credential_access,</group>
+  </rule>
+
+  <!-- ===================== PowerShell Script Block Logging (Event 4104) ===================== -->
+
+  <rule id="100213" level="10">
+    <if_group>windows</if_group>
+    <field name="win.system.eventID">^4104$</field>
+    <field name="win.eventdata.scriptBlockText" type="pcre2">(?i)(Invoke-Expression|\bIEX\b|DownloadString|FromBase64String|Invoke-Mimikatz)</field>
+    <description>PowerShell: Suspicious script block executed (IEX / download / base64 decode)</description>
+    <mitre>
+      <id>T1059.001</id>
+    </mitre>
+    <group>win_execution,</group>
+  </rule>
+
+</group>

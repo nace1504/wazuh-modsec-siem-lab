@@ -14,13 +14,13 @@ Tài liệu này là cẩm nang hướng dẫn từng bước (Step-by-step clic
            Subnet: 192.168.1.0/24
            Gateway: 192.168.1.2
                         │
-      ┌─────────────────┼─────────────────┐
-      │                 │                 │
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ VM 1: ATTACK │ │ VM 2: TARGET │ │ VM 3: SIEM   │
-│ Kali Linux   │ │ Ubuntu 22.04 │ │ Ubuntu 22.04 │
-│ 192.168.1.10 │ │ 192.168.1.20 │ │ 192.168.1.30 │
-└──────────────┘ └──────────────┘ └──────────────┘
+      ┌─────────────────┼─────────────────┬─────────────────┐
+      │                 │                 │                 │
+┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+│ VM 1: ATTACK │ │ VM 2: TARGET │ │ VM 3: SIEM   │ │ VM 4: CLIENT │
+│ Kali Linux   │ │ Ubuntu 22.04 │ │ Ubuntu 22.04 │ │ Windows 10   │
+│ 192.168.1.10 │ │ 192.168.1.20 │ │ 192.168.1.30 │ │ 192.168.1.40 │
+└──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘
 ```
 
 ---
@@ -30,15 +30,20 @@ Tài liệu này là cẩm nang hướng dẫn từng bước (Step-by-step clic
 Hệ thống được thống nhất chuẩn hóa toàn diện trên nền tảng **Ubuntu Server 22.04 LTS** cho toàn bộ máy chủ server:
 1. `kali-linux-2024.4-vmware-amd64.7z` (Bản máy ảo VMware đóng gói sẵn - Pre-built Image cho VM 1 Attacker).
 2. Thư mục `iso ubuntu 22.04.5` (File ISO Ubuntu Server 22.04.5 LTS dùng chung cho cả VM 2 và VM 3).
+3. File ISO **Windows 10 (22H2, 64-bit)** tải từ trang Microsoft (*Download Windows 10 → Media Creation Tool → ISO file*) cho VM 4 Windows Client (Giai đoạn 5).
 
-### Bảng phân bổ cấu hình chi tiết cho 3 máy ảo:
+### Bảng phân bổ cấu hình chi tiết cho 4 máy ảo:
 
 | Máy ảo | Vai trò & Nguồn cài đặt | vCPU | RAM | Ổ cứng SSD | Network Adapter | Địa chỉ IP Tĩnh |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **VM 1** | **Attacker**<br>• Dùng: `kali-linux-2024.4-vmware-amd64.7z`<br>*(Giải nén mở trực tiếp .vmx, không cần cài)* | 2 Cores | 2 GB - 4 GB | ~25 GB (Có sẵn) | Custom: `VMnet8 (NAT)` | `192.168.1.10/24`<br>User: `kali`<br>Pass: `kali` |
 | **VM 2** | **Web Target & WAF**<br>• Dùng: ISO trong `iso ubuntu 22.04.5`<br>*(Ubuntu Server 22.04.5 LTS)* | 2 Cores | 4 GB | 30 GB (Thin) | Custom: `VMnet8 (NAT)` | `192.168.1.20/24`<br>User: `admin` |
 | **VM 3** | **Wazuh AIO SIEM**<br>• Dùng: ISO trong `iso ubuntu 22.04.5`<br>*(Ubuntu Server 22.04.5 LTS)* | **4 Cores** | **8 GB** | **50 GB (Thin)** | Custom: `VMnet8 (NAT)` | `192.168.1.30/24`<br>User: `admin` |
-| **TỔNG**| **Yêu cầu máy Host (Windows/Linux)**| **$\ge$ 8 Threads** | **$\ge$ 16 GB** | **$\ge$ 110 GB** | | |
+| **VM 4** | **Windows 10 Client (Endpoint)**<br>• Dùng: ISO Windows 10 22H2 64-bit<br>*(Giai đoạn 5)* | 2 Cores | 4 GB | 60 GB (Thin) | Custom: `VMnet8 (NAT)` | `192.168.1.40/24`<br>User: `labuser` (Local Admin) |
+| **TỔNG**| **Yêu cầu máy Host (Windows/Linux)**| **$\ge$ 8 Threads** | **$\ge$ 16 GB** (3 VM) / **$\ge$ 20 GB** (4 VM) | **$\ge$ 170 GB** | | |
+
+> [!TIP]
+> Nếu máy Host chỉ có 16 GB RAM, không cần bật cả 4 VM cùng lúc: khi demo Giai đoạn 5 (Windows) có thể tắt VM 2, và ngược lại.
 
 > [!NOTE]
 > * **Lợi thế khi đồng bộ Ubuntu 22.04.5 LTS cho cả VM 2 và VM 3:**
@@ -131,6 +136,25 @@ Hệ thống được thống nhất chuẩn hóa toàn diện trên nền tản
 8. **Network Connection:** Chọn **Use custom virtual network** $\rightarrow$ Chọn **`VMnet8 (NAT)`** $\rightarrow$ **Next**.
 9. **I/O & Disk Type:** Để mặc định $\rightarrow$ **Next**.
 10. **Disk Capacity:** Điền **`50.0 GB`** (chứa database chỉ mục OpenSearch và log kiểm toán) $\rightarrow$ Chọn **Split virtual disk into multiple files** $\rightarrow$ **Next** $\rightarrow$ **Finish**.
+
+---
+
+### 4.4. Khởi tạo VM 4: Windows 10 Client (Giai đoạn 5 – Sử dụng ISO Windows 10 22H2)
+1. Chọn **File** $\rightarrow$ **New Virtual Machine...** $\rightarrow$ Chọn **Custom (advanced)** $\rightarrow$ **Next**.
+2. Hardware compatibility: Mặc định $\rightarrow$ **Next**.
+3. **Guest OS Installation:** Chọn *Installer disc image file (iso)* $\rightarrow$ Browse tới file ISO Windows 10 $\rightarrow$ **Next**.
+4. **Easy Install Information:** Bỏ trống *Windows product key*, chọn *Version to install*: **Windows 10 Pro**, đặt Full name `labuser` và mật khẩu $\rightarrow$ **Next** (chọn *No* khi được hỏi tiếp tục không cần product key).
+5. **Virtual machine name:** Đặt tên `VM4-Windows10-Client` $\rightarrow$ **Next**.
+6. **Firmware Type:** **UEFI** $\rightarrow$ **Next**.
+7. **Processor Configuration:** Processors `1`, Cores per processor `2` (Tổng 2 Cores) $\rightarrow$ **Next**.
+8. **Memory:** Điền `4096 MB` (4 GB RAM) $\rightarrow$ **Next**.
+9. **Network Connection:** Chọn **Use custom virtual network** $\rightarrow$ **`VMnet8 (NAT)`** $\rightarrow$ **Next**.
+10. **I/O & Disk Type:** Để mặc định (LSI Logic SAS, NVMe) $\rightarrow$ **Next**.
+11. **Disk Capacity:** Điền `60.0 GB` $\rightarrow$ Chọn **Split virtual disk into multiple files** $\rightarrow$ **Next** $\rightarrow$ **Finish**.
+12. Sau khi cài xong Windows: VMware tự cài **VMware Tools** (nếu không, chọn menu **VM** $\rightarrow$ **Install VMware Tools...**) để card mạng `vmxnet3` và đồng hồ hoạt động ổn định.
+
+> [!NOTE]
+> Bản Windows 10 chưa kích hoạt bản quyền vẫn hoạt động đầy đủ chức năng Event Log, Sysmon và Windows Firewall cho mục đích phòng lab.
 
 ---
 
@@ -241,6 +265,30 @@ Hệ thống được thống nhất chuẩn hóa toàn diện trên nền tản
 
 ---
 
+### 5.5. Cấu hình IP Tĩnh trên VM 4 (Windows 10 - `192.168.1.40`)
+Mở **PowerShell (Run as Administrator)** trên VM 4:
+1. Kiểm tra tên card mạng (thường là `Ethernet0`):
+   ```powershell
+   Get-NetAdapter
+   ```
+2. Gán IP tĩnh, Gateway và DNS:
+   ```powershell
+   New-NetIPAddress -InterfaceAlias "Ethernet0" -IPAddress 192.168.1.40 -PrefixLength 24 -DefaultGateway 192.168.1.2
+   Set-DnsClientServerAddress -InterfaceAlias "Ethernet0" -ServerAddresses 8.8.8.8,1.1.1.1
+   ```
+3. Đặt múi giờ, đồng bộ thời gian và đổi tên máy:
+   ```powershell
+   tzutil /s "SE Asia Standard Time"
+   w32tm /resync
+   Rename-Computer -NewName "VM4-WIN-CLIENT" -Restart
+   ```
+4. Cho phép phản hồi ping từ dải lab (Windows chặn ICMP mặc định):
+   ```powershell
+   New-NetFirewallRule -Name Lab-Allow-ICMPv4 -DisplayName Lab-Allow-ICMPv4 -Direction Inbound -Protocol ICMPv4 -RemoteAddress 192.168.1.0/24 -Action Allow
+   ```
+
+---
+
 ## ⏰ 6. BƯỚC 4: ĐỒNG BỘ THỜI GIAN (NTP) & CÀI GÓI NỀN TẢNG
 
 ### 6.1. Đồng bộ thời gian hệ thống (Thực hiện trên CẢ 3 VM)
@@ -306,7 +354,14 @@ ping -c 3 192.168.1.20    # Ping sang VM 2
 curl -I https://google.com
 ```
 
-### 4. Kiểm tra SSH từ máy Host (Windows) vào các máy ảo:
+### 4. Kiểm tra từ VM 4 (Windows 10 - `192.168.1.40`, Giai đoạn 5):
+```powershell
+ping 192.168.1.30                              # Ping sang VM 3 (Kỳ vọng: Reply)
+Test-NetConnection 192.168.1.30 -Port 1514     # Kỳ vọng: TcpTestSucceeded : True (sau khi cài Wazuh ở Giai đoạn 3)
+Resolve-DnsName google.com                     # Kiểm tra DNS Internet
+```
+
+### 5. Kiểm tra SSH từ máy Host (Windows) vào các máy ảo:
 Từ Windows Terminal / PowerShell của máy thật:
 ```powershell
 ssh ubuntu@192.168.1.20
