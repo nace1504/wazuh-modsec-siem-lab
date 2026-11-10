@@ -336,6 +336,38 @@ Với `<timeout>600</timeout>`, sau 10 phút Wazuh Agent tự gọi lại `win-f
 
 ---
 
+## 📤 12. XUẤT CẢNH BÁO DEMO CHO AI AGENT XỬ LÝ CẢNH BÁO (ALERT TRIAGE)
+
+Script [`scripts/export-demo-alerts.sh`](../scripts/export-demo-alerts.sh) (chạy trên **VM 3**) xuất toàn bộ cảnh báo trong khung giờ demo thành bộ dữ liệu có nhãn, dùng làm đầu vào / tập đánh giá cho AI agent:
+
+```bash
+cd ~/wazuh-modsec-siem-lab && git pull
+
+# Xác định giờ cảnh báo đầu/cuối của buổi demo
+sudo jq -r 'select(.agent.name=="vm4-win-client" and (.rule.id|tonumber)>=100200 and (.rule.id|tonumber)<100300) | .timestamp' /var/ossec/logs/alerts/alerts.json | sed -n '1p;$p'
+
+# Xuất (nới rộng vài phút mỗi đầu); mặc định lấy vm4-win-client + vm2-web-target, level >= 3
+sudo bash scripts/export-demo-alerts.sh 2026-11-11T14:40:00 2026-11-11T15:30:00
+```
+
+Kết quả: thư mục `~/demo-alerts-<thời_gian>/` và file nén `~/demo-alerts-<thời_gian>.tar.gz` gồm:
+
+| File | Nội dung |
+| :--- | :--- |
+| `alerts.jsonl` | Mỗi dòng là 1 cảnh báo Wazuh gốc (đủ `rule`, `mitre`, `agent`, `data.win.*`, `data.transaction.*`, `full_log`), sắp xếp theo thời gian, đã bổ sung trường **`ground_truth`** (`label`, `scenario`, `reason`) |
+| `summary.md` | Mô tả môi trường lab, định nghĩa nhãn, thống kê theo nhãn và theo rule, giải thích các trường quan trọng |
+
+* **Gắn nhãn tự động:** `true_positive` cho cảnh báo từ IP attacker (`web_attack_waf`, `smb_bruteforce`, `attacker_ip_activity`) và cảnh báo mô phỏng hậu khai thác (`post_exploitation_simulation`); còn lại là `benign` / `background`.
+* **Che dữ liệu nhạy cảm:** mật khẩu trong lệnh `net user <tên> <mật_khẩu> /add` được thay bằng `***REDACTED***`.
+* **Tùy chỉnh** qua biến môi trường: `AGENTS="vm4-win-client"`, `MIN_LEVEL=5`, `ATTACKER_IP=...`.
+
+Tải file nén về máy thật (PowerShell trên Windows host):
+```powershell
+scp ubuntu@192.168.1.30:~/demo-alerts-<thời_gian>.tar.gz .
+```
+
+---
+
 ## 🎯 KẾT LUẬN GIAI ĐOẠN 5
 Hệ thống SIEM đã được mở rộng từ giám sát tầng ứng dụng Web sang giám sát tầng Endpoint, hoàn thiện mô hình phòng thủ nhiều lớp:
 $$\text{Attack (Kali)} \longrightarrow \text{Endpoint Telemetry (Event Log + Sysmon)} \longrightarrow \text{Correlate (Wazuh Rules)} \longrightarrow \text{Active Response (Windows Firewall)}$$

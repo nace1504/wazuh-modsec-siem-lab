@@ -54,6 +54,15 @@ IPs and versions come from `.env` (copied from `.env.example`; `.env` is gitigno
 - **Demo:** use SMB brute-force (`test-windows-attacks.sh`, smbclient loop). RDP with NLA may log 4625 without a source IP.
 - **Keep `.ps1` files ASCII-only.** Windows PowerShell 5.1 reads BOM-less UTF-8 as ANSI. Audit policy is set by subcategory GUID, and the Administrators group by SID `S-1-5-32-544`, so both work on any Windows display language.
 
+## Alert export for AI triage
+
+`scripts/export-demo-alerts.sh START END` runs on VM3 with sudo.
+- **Input:** `alerts.json` for today, plus `YYYY/Mon/ossec-alerts-DD.json.gz` for earlier days.
+- **Output:** `~/demo-alerts-<stamp>/{alerts.jsonl,summary.md}` and a matching `.tar.gz`.
+- **Labels:** each alert gets a `ground_truth` label, assigned by rule-ID ranges, attacker IP and simulation markers (`lab-backdoor`, `WAZUH-LAB-TEST`, `sekurlsa::`).
+- **Keep in sync:** if you add rules or test scenarios, update the label `if/elif` chain in the jq program.
+- **Compatibility:** the jq code must stay compatible with jq 1.6, the Ubuntu 22.04 version.
+
 ## Common commands (run on the VMs, not locally)
 
 ```bash

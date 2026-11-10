@@ -48,7 +48,8 @@ Dự án triển khai mô hình phòng lab SOC / SIEM chuẩn công nghiệp gi�
     ├── test-attacks.sh                # Script giả lập tấn công tự động (SQLi, XSS, LFI, RCE, Active Response)
     ├── setup-vm4-windows-agent.ps1    # Cài Wazuh Agent + Sysmon + Audit Policy + AR trên VM 4 (Windows 10)
     ├── simulate-windows-events.ps1    # Sinh sự kiện hậu khai thác an toàn trên VM 4 để kiểm thử luật
-    └── test-windows-attacks.sh        # SMB brute-force từ Kali vào VM 4, kiểm chứng Active Response
+    ├── test-windows-attacks.sh        # SMB brute-force từ Kali vào VM 4, kiểm chứng Active Response
+    └── export-demo-alerts.sh          # Xuất cảnh báo demo (JSONL có nhãn ground_truth + summary) cho AI agent
 ```
 
 ---
